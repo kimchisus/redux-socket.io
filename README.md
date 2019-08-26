@@ -81,7 +81,9 @@ const socketsServer = server => {
         },
     };
     
-    sockets.of('/rossGellar', useStore(appStoreConfig));
+    const socket = sockets.of('/rossGellar');
+    
+    socket.use(useStore(appStoreConfig));
 
     return sockets;
 };
@@ -99,12 +101,24 @@ export default {
 };
 ```
 
-That's it! Now your endpoint is hooked up to your socket's redux store instead of your local. 
-You have all the tools available to handle fetching and persisting the data. 
-The socket connection is passed to your getStore config so if you have any auth middleware
-that mutates the socket object, you can use them here. It is ultimately up to you on where you 
-want to get this data for the initialState. Whether from Redis, or mySQL.
+That's literally all you have to do. Your dispatching and state is now handled by your socket connection. All you
+have to do now is use redux normally and everything will be handled by the middleware. 
 
+If you'd like to dispatch your action to the socket connection, all you have to do is dispatch your action
+with the property `to`. This two field will indicate which namespaced socket connection the action should be going to.
+
+If you'd like to persist data, implement the `saveStore` property as a function in your middleware configuration.
+
+```js
+{
+    getStore: (socket) => {
+        return db.getUserStore(socket.user);
+    },
+    saveStore: (store) => {
+        db.saveStore(store);
+    }
+}
+```
 
 ```js
     dispatch({ 
