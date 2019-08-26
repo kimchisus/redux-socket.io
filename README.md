@@ -2,10 +2,10 @@ Redux-Socket.io
 -------------------
 
 ## Lovely State management with sockets
-This is the official repository for redux-socket.io. 
+This is the official repository for @rykimchi/redux-socket.io. 
 
 ### Redux
-Redux is an state management too that is agnostic across multiple JS frameworks. While it's primary focus is on state
+Redux is an state management tool that is agnostic across multiple JS frameworks. While it's primary focus is on state
 management, I personally think it's more about the actions and events. Redux works like an event emitter where you
 dispatch actions in order to modify state. That action is passed to what's called a reducer and the reducer
 transforms state according to the action and the action's payload. 
@@ -22,43 +22,29 @@ middleware support, etc. It's lovely to use and setup.
 ## Getting Started
 
 ### Install
-Run an `npm install redux-socket.io` on your project.
+Run an `npm install @rykimchi/redux-socket.io` on your project.
 
 ### Setup your client middleware
 
 ```js
-import { createClientMiddleware } from 'redux-socket.io';
+import { socketMiddlewareFactory } from '@rykimchi/redux-socket.io';
 
 const socketConfig = {
     path: '/sockets'
 };
 
 const sockets = [
-    {
-        namespace: '/rossGellar',
-        actions: [
-            'whine',
-            'divorce'
-        ],
-        connection: io.connect('/rossGellar', socketConfig)
-    },
-    {
-        namespace: '/theRock',
-        actions: [
-            'cook',
-            'rock bottom'
-        ],
-        connection: io.connect('/theRock', socketConfig)
-    }
+    io.connect('/rossGellar', socketConfig),
+    io.connect('/theRock', socketConfig)
 ];
 
-const reduxSocketIOMiddleware = createClientMiddleware(sockets);
+const reduxSocketIOMiddleware = socketMiddlewareFactory(sockets);
 
 const reducers = combineReducers(reducersMap);
 
 const composeEnhancers = window.__REDUX_DEVTOOLS_EXTENSION_COMPOSE__ || compose;
 
-const enhancer = composeEnhancers(applyMiddleware(reduxSocketsMiddleware));
+const enhancer = composeEnhancers(applyMiddleware(reduxSocketIOMiddleware));
 
 export default createStore(reducers, enhancer);
 
@@ -71,7 +57,8 @@ import app from './src/app';
 import http from 'http';
 import Logger from 'helpers/Logger';
 import config from 'config';
-import { createServerMiddleware } from 'redux-socket.io';
+import appReducer from 'reducers/app';
+import { useStore } from '@rykimchi/redux-socket.io';
 
 const { port } = config;
 
@@ -85,47 +72,26 @@ const socketsServer = server => {
         })
     });
     
-    const socketsConfig = [
-        {
-            namespace: '/rossGellar',
-            actions: [
-                'whine',
-                'divorce'
-            ],
-            connection: sockets.of('/rossGellar'),
-            reducer: (state = {}, action) => {
-                switch(action.type) {
-                    case 'whine':
-                        return {
-                            ...state,
-                            message: 'waaaaahhhhhhhhhh',
-                            length: action.length
-                        };
-                    default:
-                        return state;
-                }
-            }
+    const appStoreConfig = {
+        getStore: (socket) => {
+            return createStore(appReducer, { test: 'testtererer '});
         },
-        {
-            namespace: '/theRock',
-            actions: [
-                'cook',
-                'rock bottom'
-            ],
-            connection: sockets.of('/theRock')
-        }
-    ];
+        saveStore: (state) => {
+            console.log('state', state);
+        },
+    };
     
-    sockets.use(createServerMiddleware(socketsConfig));
+    sockets.of('/rossGellar', useStore(appStoreConfig));
 
     return sockets;
 };
+
+socketsServer(server);
 
 server.listen(port, () => {
     Logger.info(`Listening on ${port}`);
 });
 
-socketsServer();
 
 export default {
     server,
@@ -133,13 +99,17 @@ export default {
 };
 ```
 
-That's it! Now your redux store will automatically emit the events you've registered in the middleware to your
-socket connection instead. Your server will be listening to these events and emit them all automatically to everyone on
-the connection including the person who emitted it. 
+That's it! Now your endpoint is hooked up to your socket's redux store instead of your local. 
+You have all the tools available to handle fetching and persisting the data. 
+The socket connection is passed to your getStore config so if you have any auth middleware
+that mutates the socket object, you can use them here. It is ultimately up to you on where you 
+want to get this data for the initialState. Whether from Redis, or mySQL.
+
 
 ```js
     dispatch({ 
         type: 'rock bottom', 
+        to: '/api',
         payload: {
             smell: "what I'm cooking?"
         }
